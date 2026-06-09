@@ -1,0 +1,19 @@
+services:
+  proxypanel:
+    image: proxypanel
+    build:
+      context: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      SECRET_KEY: ${SECRET_KEY:-}
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.sqlite3}
+      DB_NAME: ${DB_NAME:-/app/data/app.db}
+    volumes:
+      - ${DATA_DIR:-./data}:/app/data
+    ports:
+      - "${PORT:-5173}:8000"
