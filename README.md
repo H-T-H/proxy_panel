@@ -1,8 +1,21 @@
+<div align="center">
+
+<img src="static/icon-192.png" width="96" alt="Proxy Share 图标">
+
 # Proxy Share
 
-自托管的 mihomo / Clash.Meta 订阅管理面板：导入机场订阅或手动添加节点，按用户分配节点，为每个用户生成独立的订阅链接。
+自托管的 mihomo / Clash.Meta 订阅管理面板
 
-单文件 Flask 应用 + SQLite，无需外部数据库，一个进程即可运行。
+[下载](../../releases/latest) · [功能](#功能) · [快速开始](#快速开始) · [Docker](#docker) · [配置项](#配置项)
+
+</div>
+
+<p align="center">
+  <img src="docs/screenshots/dashboard-light.png" width="49%" alt="概览页（浅色）">
+  <img src="docs/screenshots/dashboard-dark.png" width="49%" alt="概览页（深色）">
+</p>
+
+导入机场订阅或手动添加节点，按用户分配节点，为每个用户生成独立的订阅链接。单文件 Flask 应用 + SQLite，无需外部数据库，一个进程即可运行。
 
 ## 功能
 
@@ -13,10 +26,14 @@
 - 手动导入：多行 URI 批量导入、单个 YAML 节点、YAML 列表或整段 `proxies:` 均可
 - 按来源、协议、状态筛选，即时搜索，批量启用/禁用/删除
 
+<p align="center"><img src="docs/screenshots/nodes-light.png" width="820" alt="节点列表"></p>
+
 **用户与订阅**
 - 每个用户独立的 `/sub/<token>` 订阅链接，可随时重置 token
 - 记录订阅拉取次数、最近一次的时间、IP 和客户端
 - 订阅响应带 `Content-Disposition`（客户端里显示用户名）和 `profile-update-interval`，支持 gzip 压缩
+
+<p align="center"><img src="docs/screenshots/user-detail-light.png" width="820" alt="用户详情：订阅链接与节点绑定"></p>
 
 **配置模板**
 - 所有用户共用一份 mihomo 配置骨架，代理组里的 `__PROXIES__` 会展开为该用户的节点
@@ -24,17 +41,24 @@
 - **节点排序**：按关键词设定优先级（如 `香港|HK`），对 `proxies` 和所有代理组都生效，带实时预览
 - **规则组默认选项**：为每个规则组设定默认选中项（DIRECT、其他组、第一个节点），自动避免循环引用；单独保存，更换模板后依然生效
 
+<p align="center"><img src="docs/screenshots/template-light.png" width="820" alt="节点排序与实时预览"></p>
+
 **界面与安全**
 - 响应式界面，支持浅色/深色主题，手机可用
 - 全站 CSRF 防护，登录失败次数限制（15 分钟内最多 5 次），常数时间比较密码
 - 仍在使用默认密码时，页面顶部会持续显示警告
+
+<p align="center">
+  <img src="docs/screenshots/mobile-dashboard-light.png" width="260" alt="手机端（浅色）">
+  <img src="docs/screenshots/mobile-dashboard-dark.png" width="260" alt="手机端（深色）">
+</p>
 
 ## 快速开始
 
 需要 Python 3.9+。
 
 ```bash
-git clone <your-repo-url> proxy-share && cd proxy-share
+git clone https://github.com/H-T-H/proxy_panel.git proxy-share && cd proxy-share
 cp .env.example .env        # 务必修改 SECRET_KEY 和 ADMIN_PASSWORD
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
@@ -119,6 +143,7 @@ static/                # 样式、脚本、图标、manifest
 tests/                 # pytest 测试
 tools/make_icons.py    # 图标生成脚本
 deploy/                # systemd 示例
+docs/screenshots/      # README 截图
 ```
 
 ## 许可证
