@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% set title = "用户" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>用户</h1>
+    <p>每个用户有独立的订阅链接，只包含为 TA 绑定的已启用节点</p>
+  </div>
+</div>
+
+<section class="card" id="new">
+  <div class="card-head"><h2>新建用户</h2></div>
+  <div class="card-body">
+    <form method="post" class="inline-form">
+      {{ csrf_field() }}
+      <label>用户名<input name="username" placeholder="例如：alice" required maxlength="120"></label>
+      <label>备注<input name="remark" placeholder="可选"></label>
+      <button class="primary"><svg class="icon sm"><use href="#i-plus"/></svg>创建并绑定节点</button>
+    </form>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <div class="search" style="max-width:360px">
+      <svg class="icon sm"><use href="#i-search"/></svg>
+      <input type="search" placeholder="搜索用户名或备注…  按 / 聚焦" data-filter="#user-table" autocomplete="off">
+    </div>
+    <span class="muted">{{ users|length }} 个用户</span>
+  </div>
+  <div class="table-wrap" id="user-table">
+    <table>
+      <thead><tr><th>用户</th><th>状态</th><th class="num">节点</th><th>最近拉取</th><th class="hide-sm">创建时间</th><th></th></tr></thead>
+      <tbody>
+        {% for user in users %}
+        {% set n = node_counts.get(user.id, 0) %}
+        <tr class="{{ '' if user.enabled else 'is-off' }}" data-filter-item data-search="{{ user.username }} {{ user.remark or '' }}">
+          <td>
+            <div class="cell-title"><a href="{{ url_for('user_detail', user_id=user.id) }}">{{ user.username }}</a></div>
+            {% if user.remark %}<div class="cell-sub">{{ user.remark }}</div>{% endif %}
+          </td>
+          <td>{% if user.enabled %}<span class="pill ok">启用</span>{% else %}<span class="pill off">禁用</span>{% endif %}</td>
+          <td class="num">{% if n %}{{ n }}{% else %}<span class="pill warn" title="订阅里没有可用节点">0</span>{% endif %}</td>
+          <td>
+            <span title="{{ user.last_sub_at|dt }}{% if user.last_sub_ip %} · {{ user.last_sub_ip }}{% endif %}">{{ user.last_sub_at|ago }}</span>
+            {% if user.sub_count %}<div class="cell-sub">共 {{ user.sub_count }} 次</div>{% endif %}
+          </td>
+          <td class="hide-sm muted">{{ user.created_at|dt('%Y-%m-%d') }}</td>
+          <td class="actions-cell">
+            <div class="actions">
+              <button type="button" class="sm" data-copy="{{ user.sub_url }}" data-copy-message="已复制 {{ user.username }} 的订阅链接"><svg class="icon sm"><use href="#i-copy"/></svg>订阅链接</button>
+              <form method="post" action="{{ url_for('toggle_user', user_id=user.id) }}" class="inline">
+                {{ csrf_field() }}
+                <button class="sm ghost icon-btn" title="{{ '禁用' if user.enabled else '启用' }}"><svg class="icon sm"><use href="#i-power"/></svg></button>
+              </form>
+              <a class="button sm ghost icon-btn" href="{{ url_for('user_detail', user_id=user.id) }}" title="管理"><svg class="icon sm"><use href="#i-edit"/></svg></a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        <tr data-filter-empty {% if users %}hidden{% endif %}><td colspan="6" class="empty"><svg class="icon"><use href="#i-users"/></svg><div>没有用户</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

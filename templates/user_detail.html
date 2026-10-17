@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% set title = user.username %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="crumb" href="{{ url_for('users') }}"><svg class="icon sm"><use href="#i-back"/></svg>用户</a>
+    <h1>{{ user.username }} {% if user.enabled %}<span class="pill ok">启用</span>{% else %}<span class="pill off">禁用</span>{% endif %}</h1>
+  </div>
+</div>
+
+<section class="card">
+  <div class="card-body stack" style="gap:10px">
+    <label>订阅链接
+      <div class="copy-field">
+        <input id="sub-url" value="{{ sub_url }}" readonly onclick="this.select()">
+        <button type="button" class="primary" data-copy-target="#sub-url" data-copy-message="订阅链接已复制"><svg class="icon sm"><use href="#i-copy"/></svg>复制</button>
+        <a class="button" href="{{ url_for('preview_user_config', user_id=user.id) }}" target="_blank" title="预览生成的配置（不计入拉取次数）"><svg class="icon sm"><use href="#i-eye"/></svg><span class="hide-sm">预览</span></a>
+      </div>
+    </label>
+    <p class="hint">在 Clash Verge / Mihomo Party / FlClash 等客户端中「导入订阅」粘贴即可。{% if not user.enabled %}<b style="color:var(--danger)">用户已禁用，链接当前返回 404。</b>{% endif %}</p>
+  </div>
+</section>
+
+<form method="post" id="user-form">
+  {{ csrf_field() }}
+  <div class="grid-side">
+    <section class="card">
+      <div class="card-head">
+        <div><h2>绑定节点</h2><p>已选 <b id="sel-count">{{ selected|length }}</b> 个 · 禁用或失效的节点不会下发</p></div>
+        <div class="actions">
+          <button type="button" class="sm" data-check=".user-node-check" data-check-value="true">全选</button>
+          <button type="button" class="sm" data-check=".user-node-check" data-check-value="false">全不选</button>
+        </div>
+      </div>
+      <div class="card-body stack" style="gap:12px">
+        <div class="search">
+          <svg class="icon sm"><use href="#i-search"/></svg>
+          <input type="search" placeholder="搜索节点，如 香港 / hy2 / jp…  按 / 聚焦" data-filter="#node-groups" autocomplete="off">
+        </div>
+        <div class="node-groups" id="node-groups">
+          {% for group in node_groups %}
+          {% set source_index = loop.index0 %}
+          {% set picked = group.nodes|selectattr('id', 'in', selected)|list|length %}
+          <details class="node-group" data-filter-group data-group="{{ source_index }}" {% if picked or node_groups|length == 1 %}open{% endif %}>
+            <summary>
+              <svg class="icon sm chev"><use href="#i-chev"/></svg>
+              <b>{{ group.label }}</b>
+              <span class="group-count"><span data-group-picked>{{ picked }}</span> / {{ group.nodes|length }}</span>
+              <span class="spacer"></span>
+              <button type="button" class="sm ghost" data-check='.user-node-check[data-source="{{ source_index }}"]' data-check-value="true">全选</button>
+              <button type="button" class="sm ghost" data-check='.user-node-check[data-source="{{ source_index }}"]' data-check-value="false">清空</button>
+            </summary>
+            <div class="node-list">
+              {% for node in group.nodes %}
+              <label class="node-item {{ '' if node.enabled and node.id not in stale_ids else 'is-off' }}" data-filter-item data-search="{{ node.name }} {{ node.type }} {{ node.tags or '' }}">
+                <input class="user-node-check" data-source="{{ source_index }}" type="checkbox" name="node_ids" value="{{ node.id }}" {% if node.id in selected %}checked{% endif %}>
+                <span class="name" title="{{ node.name }}">{{ node.name }}</span>
+                {% if node.id in stale_ids %}<span class="pill warn">失效</span>{% elif not node.enabled %}<span class="pill off">禁用</span>{% endif %}
+                <span class="tag type">{{ node.type }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </details>
+          {% else %}
+          <p class="empty">还没有节点，先去 <a href="{{ url_for('sources') }}">添加订阅源</a> 或 <a href="{{ url_for('new_node') }}">手动添加</a></p>
+          {% endfor %}
+          <p class="empty" data-filter-empty hidden>没有匹配的节点</p>
+        </div>
+      </div>
+    </section>
+
+    <aside class="stack">
+      <section class="card">
+        <div class="card-head"><h2>基本信息</h2></div>
+        <div class="card-body form">
+          <label>用户名<input name="username" value="{{ user.username }}" required></label>
+          <label>备注<textarea name="remark" rows="3">{{ user.remark or '' }}</textarea></label>
+          <label class="switch"><input type="checkbox" name="enabled" value="1" {% if user.enabled %}checked{% endif %}>启用订阅</label>
+        </div>
+        <div class="card-foot">
+          <button class="primary" style="flex:1">保存更改</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>订阅统计</h2></div>
+        <div class="card-body">
+          <dl class="kv">
+            <dt>最近拉取</dt><dd title="{{ user.last_sub_at|dt }}">{{ user.last_sub_at|ago }}</dd>
+            <dt>累计次数</dt><dd>{{ user.sub_count or 0 }}</dd>
+            <dt>来源 IP</dt><dd class="mono">{{ user.last_sub_ip or '-' }}</dd>
+            <dt>客户端</dt><dd style="font-size:12px">{{ user.last_sub_ua or '-' }}</dd>
+            <dt>创建于</dt><dd>{{ user.created_at|dt }}</dd>
+          </dl>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>危险操作</h2></div>
+        <div class="card-body stack" style="gap:10px">
+          <button type="submit" form="reset-form" class="sm"><svg class="icon sm"><use href="#i-key"/></svg>重置订阅链接</button>
+          <p class="hint">旧链接立即失效，需要把新链接重新发给用户。</p>
+          <button type="submit" form="delete-form" class="sm danger"><svg class="icon sm"><use href="#i-trash"/></svg>删除用户</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+</form>
+<form method="post" action="{{ url_for('reset_token', user_id=user.id) }}" id="reset-form" data-confirm="重置后旧订阅链接立即失效，确定？" hidden>{{ csrf_field() }}</form>
+<form method="post" action="{{ url_for('delete_user', user_id=user.id) }}" id="delete-form" data-confirm="删除用户「{{ user.username }}」？此操作不可撤销。" hidden>{{ csrf_field() }}</form>
+
+<script>
+  (function () {
+    var form = document.getElementById("user-form");
+    var dirty = false;
+    function refresh() {
+      document.getElementById("sel-count").textContent = form.querySelectorAll(".user-node-check:checked").length;
+      form.querySelectorAll("[data-group]").forEach(function (group) {
+        group.querySelector("[data-group-picked]").textContent = group.querySelectorAll(".user-node-check:checked").length;
+      });
+    }
+    document.addEventListener("selection-change", function () { dirty = true; refresh(); });
+    form.addEventListener("input", function () { dirty = true; });
+    form.addEventListener("submit", function () { dirty = false; });
+    window.addEventListener("beforeunload", function (e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+  })();
+</script>
+{% endblock %}

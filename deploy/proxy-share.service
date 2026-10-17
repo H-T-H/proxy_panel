@@ -1,0 +1,16 @@
+# systemd 示例：复制到 /etc/systemd/system/ 后按实际路径修改 WorkingDirectory / ExecStart
+#   systemctl daemon-reload && systemctl enable --now proxy-share
+[Unit]
+Description=Proxy Share subscription panel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/proxy-share
+ExecStart=/opt/proxy-share/.venv/bin/python app.py
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% set title = "概览" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>概览</h1>
+    <p>节点、用户与订阅拉取情况一览</p>
+  </div>
+  <div class="actions">
+    <form method="post" action="{{ url_for('sync_all_sources') }}" class="inline">
+      {{ csrf_field() }}
+      <input type="hidden" name="next" value="{{ url_for('index') }}">
+      <button data-loading><svg class="icon sm"><use href="#i-refresh"/></svg>同步全部订阅源</button>
+    </form>
+    <a class="button primary" href="{{ url_for('users') }}#new"><svg class="icon sm"><use href="#i-plus"/></svg>新建用户</a>
+  </div>
+</div>
+
+<section class="stats">
+  <a class="card stat" href="{{ url_for('nodes') }}" style="color:inherit">
+    <div class="stat-top">启用节点<span class="stat-icon"><svg class="icon"><use href="#i-server"/></svg></span></div>
+    <div class="stat-value">{{ stats.enabled_nodes }}<small class="muted"> / {{ stats.nodes }}</small></div>
+    <div class="meter"><span style="width: {{ (stats.enabled_nodes / stats.nodes * 100) if stats.nodes else 0 }}%"></span></div>
+  </a>
+  <a class="card stat" href="{{ url_for('users') }}" style="color:inherit">
+    <div class="stat-top">启用用户<span class="stat-icon"><svg class="icon"><use href="#i-users"/></svg></span></div>
+    <div class="stat-value">{{ stats.enabled_users }}<small class="muted"> / {{ stats.users }}</small></div>
+    <div class="meter"><span style="width: {{ (stats.enabled_users / stats.users * 100) if stats.users else 0 }}%"></span></div>
+  </a>
+  <div class="card stat">
+    <div class="stat-top">24 小时活跃<span class="stat-icon ok"><svg class="icon"><use href="#i-activity"/></svg></span></div>
+    <div class="stat-value">{{ stats.active_users }}</div>
+    <div class="stat-sub">过去一天拉取过订阅的用户</div>
+  </div>
+  <a class="card stat" href="{{ url_for('sources') }}" style="color:inherit">
+    <div class="stat-top">订阅源<span class="stat-icon {{ 'warn' if stats.source_errors else '' }}"><svg class="icon"><use href="#i-cloud"/></svg></span></div>
+    <div class="stat-value">{{ stats.sources }}</div>
+    <div class="stat-sub">{% if stats.source_errors %}<span style="color:var(--danger)">{{ stats.source_errors }} 个同步失败</span>{% else %}全部正常{% endif %}</div>
+  </a>
+</section>
+
+<div class="grid-side">
+  <section class="card">
+    <div class="card-head">
+      <div><h2>订阅动态</h2><p>按最近拉取时间排序</p></div>
+      <a href="{{ url_for('users') }}" class="button sm ghost">全部用户<svg class="icon sm"><use href="#i-chev"/></svg></a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>用户</th><th class="num">节点</th><th>最近拉取</th><th class="hide-sm">客户端</th></tr></thead>
+        <tbody>
+          {% for user in recent_users %}
+          <tr class="{{ '' if user.enabled else 'is-off' }}">
+            <td>
+              <div class="cell-title"><a href="{{ url_for('user_detail', user_id=user.id) }}">{{ user.username }}</a></div>
+              {% if not user.enabled %}<div class="cell-sub">已禁用</div>{% elif user.remark %}<div class="cell-sub">{{ user.remark }}</div>{% endif %}
+            </td>
+            <td class="num">{{ user_node_counts.get(user.id, 0) }}</td>
+            <td>
+              {% if user.last_sub_at %}
+                <span class="pill {{ 'ok' if (now - user.last_sub_at).total_seconds() < 86400 else 'off' }}" title="{{ user.last_sub_at|dt }}">{{ user.last_sub_at|ago }}</span>
+              {% else %}<span class="pill off">从未</span>{% endif %}
+            </td>
+            <td class="hide-sm"><div class="clip muted" style="max-width:220px" title="{{ user.last_sub_ua or '' }}">{{ (user.last_sub_ua or '-')|truncate(40, true) }}</div></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="empty">还没有用户</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="stack">
+    <section class="card">
+      <div class="card-head"><h2>协议分布</h2></div>
+      <div class="card-body bars">
+        {% set max_count = type_counts[0][1] if type_counts else 1 %}
+        {% for type, count in type_counts %}
+        <a class="bar-row" href="{{ url_for('nodes', type=type) }}" style="color:inherit">
+          <span class="type">{{ type }}</span>
+          <div class="meter"><span style="width: {{ count / max_count * 100 }}%"></span></div>
+          <b>{{ count }}</b>
+        </a>
+        {% else %}
+        <p class="muted">暂无节点</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>订阅源状态</h2><a href="{{ url_for('sources') }}" class="button sm ghost">管理<svg class="icon sm"><use href="#i-chev"/></svg></a></div>
+      <div class="card-body stack" style="gap:14px">
+        {% for source in sources %}
+        {% set c = node_counts[source.id] %}
+        <div class="row" style="flex-wrap:nowrap">
+          <div style="min-width:0;flex:1">
+            <div class="cell-title clip">{{ source.name }}</div>
+            <div class="cell-sub">{{ c.total }} 个节点{% if c.stale %} · <span style="color:var(--warn)">{{ c.stale }} 个失效</span>{% endif %} · {{ source.last_synced_at|ago }}</div>
+          </div>
+          {% if source.last_error %}<span class="pill err" title="{{ source.last_error }}">失败</span>
+          {% elif not source.enabled %}<span class="pill off">已停用</span>
+          {% elif source.last_synced_at %}<span class="pill ok">正常</span>
+          {% else %}<span class="pill warn">未同步</span>{% endif %}
+        </div>
+        {% else %}
+        <p class="muted">还没有订阅源，<a href="{{ url_for('sources') }}">去添加</a></p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

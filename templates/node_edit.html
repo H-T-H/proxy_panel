@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% set title = node.name %}
+{% set back = next_url or url_for('nodes') %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="crumb" href="{{ back }}"><svg class="icon sm"><use href="#i-back"/></svg>节点</a>
+    <h1>{{ node.name }}</h1>
+    <p><span class="tag type">{{ node.type }}</span> · 来自 {{ node.source_label }}</p>
+  </div>
+</div>
+<div class="grid-side">
+  <section class="card">
+    <form method="post">
+      {{ csrf_field() }}
+      <input type="hidden" name="next" value="{{ back }}">
+      <div class="card-body form">
+        <div class="form-row">
+          <label>名称<input name="name" value="{{ node.name }}" required></label>
+          <label>标签 <input name="tags" value="{{ node.tags or '' }}" placeholder="用逗号分隔，如：香港, 低延迟"></label>
+        </div>
+        <label>备注<textarea name="remark" rows="2">{{ node.remark or '' }}</textarea></label>
+        <label class="switch"><input type="checkbox" name="enabled" value="1" {% if node.enabled %}checked{% endif %}>启用（禁用后不会出现在任何用户的订阅中）</label>
+        {% if editable_config %}
+          <label>节点配置（mihomo YAML）
+            <textarea name="config_text" rows="16" class="code" spellcheck="false" required>{{ config_text }}</textarea>
+            <span class="hint">保存时会重新解析这份配置；配置里的 name 会覆盖上方名称。</span>
+          </label>
+        {% else %}
+          <label>当前配置（只读）
+            <textarea rows="16" class="code" readonly>{{ readonly_config }}</textarea>
+            <span class="hint">该节点来自订阅源，协议参数由同步维护。改过的名称在下次同步时会保留。</span>
+          </label>
+        {% endif %}
+      </div>
+      <div class="card-foot sticky-save">
+        <button class="primary">保存</button>
+        <a class="button ghost" href="{{ back }}">取消</a>
+      </div>
+    </form>
+  </section>
+  <aside class="stack">
+    <section class="card">
+      <div class="card-head"><h2>使用中的用户</h2><span class="muted">{{ bound_users|length }}</span></div>
+      <div class="card-body stack" style="gap:8px">
+        {% for u in bound_users %}
+          <a href="{{ url_for('user_detail', user_id=u.id) }}" class="row" style="justify-content:space-between">{{ u.username }}{% if not u.enabled %}<span class="pill off">禁用</span>{% endif %}</a>
+        {% else %}
+          <p class="muted">还没有用户绑定这个节点</p>
+        {% endfor %}
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-body">
+        <dl class="kv">
+          <dt>创建</dt><dd>{{ node.created_at|dt }}</dd>
+          <dt>更新</dt><dd>{{ node.updated_at|dt }}</dd>
+          {% if node.stale %}<dt>状态</dt><dd><span class="pill warn">上游已失效</span></dd>{% endif %}
+        </dl>
+      </div>
+      <div class="card-foot">
+        <form method="post" action="{{ url_for('delete_node', node_id=node.id) }}" class="inline" data-confirm="删除节点「{{ node.name }}」？">
+          {{ csrf_field() }}
+          <input type="hidden" name="next" value="{{ back }}">
+          <button class="danger sm"><svg class="icon sm"><use href="#i-trash"/></svg>删除节点</button>
+        </form>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

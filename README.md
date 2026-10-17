@@ -1,83 +1,126 @@
-# ProxyPanel
+# Proxy Share
 
-ProxyPanel 是一个 mihomo/Clash 订阅管理面板，提供节点同步、用户订阅、模板配置和客户端分发能力。
+自托管的 mihomo / Clash.Meta 订阅管理面板：导入机场订阅或手动添加节点，按用户分配节点，为每个用户生成独立的订阅链接。
 
-## 亮点
+单文件 Flask 应用 + SQLite，无需外部数据库，一个进程即可运行。
 
-- 可以将多个机场的节点合并管理，并输出为一个统一订阅。
-- 可以为朋友或团队成员创建独立订阅账号，按用户分配可用节点。
-- 每个用户拥有独立订阅地址，重置 token 后旧链接立即失效。
-- 支持普通用户门户，用户可自行复制订阅、导入客户端或下载客户端。
-- 可单个 Docker 容器部署，适合轻量自用或小范围共享。
+## 功能
 
-## 界面预览
+**节点**
+- 导入 mihomo/Clash YAML 订阅源，支持一键同步全部订阅源
+- 上游更换密码或参数时，同名节点**原地更新**，用户绑定不会丢失；你在本地改过的节点名也会保留
+- 上游已删除的节点自动标记为「失效」，可以筛选后批量处理
+- 手动导入：多行 URI 批量导入、单个 YAML 节点、YAML 列表或整段 `proxies:` 均可
+- 按来源、协议、状态筛选，即时搜索，批量启用/禁用/删除
 
-管理员后台：
+**用户与订阅**
+- 每个用户独立的 `/sub/<token>` 订阅链接，可随时重置 token
+- 记录订阅拉取次数、最近一次的时间、IP 和客户端
+- 订阅响应带 `Content-Disposition`（客户端里显示用户名）和 `profile-update-interval`，支持 gzip 压缩
 
-![管理员后台](docs/images/admin-dashboard.png)
+**配置模板**
+- 所有用户共用一份 mihomo 配置骨架，代理组里的 `__PROXIES__` 会展开为该用户的节点
+- 可以从远程完整配置或粘贴的配置中提取模板
+- **节点排序**：按关键词设定优先级（如 `香港|HK`），对 `proxies` 和所有代理组都生效，带实时预览
+- **规则组默认选项**：为每个规则组设定默认选中项（DIRECT、其他组、第一个节点），自动避免循环引用；单独保存，更换模板后依然生效
 
-普通用户门户：
-
-![普通用户门户](docs/images/user-portal.png)
-
-## 主要功能
-
-1. 订阅源管理：同步 mihomo/Clash YAML，支持单个或批量同步，并自动处理远端已删除节点。
-2. 节点管理：支持手动导入、启用禁用、搜索筛选、批量操作和 YAML 编辑。
-3. 用户订阅：管理员可创建订阅用户、绑定节点、重置密码，并为用户生成独立订阅地址。
-4. 模板与客户端：支持订阅模板预览、节点顺序配置、客户端链接或本地文件分发。
-
-## 技术栈
-
-- 后端：Django、Django REST Framework
-- 前端：React、Ant Design、Vite
-- 数据库：SQLite
-- 部署：Docker 单容器，Docker Compose 可选
+**界面与安全**
+- 响应式界面，支持浅色/深色主题，手机可用
+- 全站 CSRF 防护，登录失败次数限制（15 分钟内最多 5 次），常数时间比较密码
+- 仍在使用默认密码时，页面顶部会持续显示警告
 
 ## 快速开始
 
-```bash
-docker build -t proxypanel .
-docker run -d \
-  --name proxypanel \
-  -e ADMIN_USERNAME=admin \
-  -e ADMIN_PASSWORD=修改成你的管理员密码 \
-  -p 5173:8000 \
-  -v "$(pwd)/data:/app/data" \
-  proxypanel
-```
-
-访问 `http://你的服务器IP:5173`。如果在本机运行，也可以访问 `http://127.0.0.1:5173`。
-
-也可以使用 Docker Compose：
+需要 Python 3.9+。
 
 ```bash
-cp .env.example .env
-docker compose up --build
-```
-
-默认管理员用户名是 `admin`。未设置 `ADMIN_PASSWORD` 时，系统会生成随机密码并保存到 `./data/admin_password`。SQLite 数据库默认挂载在 `./data/app.db`。
-
-## 本地开发
-
-后端：
-
-```bash
-cd backend
+git clone <your-repo-url> proxy-share && cd proxy-share
+cp .env.example .env        # 务必修改 SECRET_KEY 和 ADMIN_PASSWORD
 python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-python manage.py migrate
-ADMIN_USERNAME=admin ADMIN_PASSWORD=your-admin-password python manage.py initadmin
-python manage.py runserver 0.0.0.0:8000
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python app.py
 ```
 
-前端：
+打开 `http://服务器IP:5000`，用 `.env` 里的账号登录。默认使用 waitress 作为生产服务器。
+
+生成随机密钥：
 
 ```bash
-cd frontend
-npm ci
-npm run dev
+python3 -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-本地开发访问 `http://127.0.0.1:5173`，Vite 会代理 `/api/` 和 `/sub/` 到后端。
+## Docker
+
+```bash
+cp .env.example .env        # 修改密钥和密码
+docker compose up -d --build
+```
+
+数据库保存在 `./data/app.db`。
+
+## systemd
+
+参考 [`deploy/proxy-share.service`](deploy/proxy-share.service)，修改其中的路径后：
+
+```bash
+sudo cp deploy/proxy-share.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now proxy-share
+journalctl -u proxy-share -f      # 查看日志
+```
+
+## 配置项
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `SECRET_KEY` | — | 会话签名密钥，**必须修改** |
+| `ADMIN_USERNAME` | `admin` | 管理员用户名 |
+| `ADMIN_PASSWORD` | `change-me` | 管理员密码，**必须修改** |
+| `DATABASE_URL` | `sqlite:///data/app.db` | SQLAlchemy 数据库地址 |
+| `HOST` / `PORT` | `0.0.0.0` / `5000` | 监听地址 |
+| `THREADS` | `8` | waitress 工作线程数 |
+| `TZ_OFFSET_HOURS` | `8` | 面板显示时区（相对 UTC） |
+| `PROFILE_UPDATE_HOURS` | `12` | 建议客户端自动更新订阅的间隔 |
+| `SESSION_DAYS` | `7` | 登录保持天数 |
+| `FLASK_DEBUG` | — | 设为 `1` 时使用 Flask 开发服务器 |
+
+## 模板说明
+
+- 模板顶层必须是 YAML 对象。系统会自动生成 `proxies`，模板里写了也会被覆盖。
+- 代理组的 `proxies` 中写 `__PROXIES__`，会展开为当前用户的全部可用节点名；没有 `proxy-groups` 时会自动生成一个 `Proxy` 组。
+- 没有 `rules` 时默认为 `MATCH,Proxy`。
+- 「从远程配置提取」会移除原配置的 `proxies`，并把代理组里的节点名替换为 `__PROXIES__`。注意：提取会**覆盖**当前模板；节点排序和规则组默认选项是单独保存的，不受影响。
+
+## 安全建议
+
+- 面板默认通过 HTTP 提供服务，登录密码和订阅链接都是明文传输。公网部署时建议放在 Nginx / Caddy 后面并启用 HTTPS，然后把 `HOST` 改为 `127.0.0.1`。反向代理需要传递 `X-Real-IP`，订阅统计和登录限流才能拿到真实 IP。
+- 订阅链接等同于节点凭据，泄露后请在用户详情页「重置订阅链接」。
+
+## 开发
+
+```bash
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest
+```
+
+重新生成图标（需要 Pillow）：
+
+```bash
+.venv/bin/pip install pillow
+.venv/bin/python tools/make_icons.py
+```
+
+## 项目结构
+
+```
+app.py                 # 全部后端逻辑：模型、路由、订阅解析与生成
+templates/             # Jinja2 页面
+static/                # 样式、脚本、图标、manifest
+tests/                 # pytest 测试
+tools/make_icons.py    # 图标生成脚本
+deploy/                # systemd 示例
+```
+
+## 许可证
+
+[MIT](LICENSE) © H-T-H

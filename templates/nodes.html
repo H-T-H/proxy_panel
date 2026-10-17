@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% set title = "节点" %}
+{% set here = request.full_path.rstrip('?') %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>节点</h1>
+    <p>共 {{ total }} 个节点，当前筛选 <b id="shown-count">{{ nodes|length }}</b> 个</p>
+  </div>
+  <div class="actions">
+    <a class="button primary" href="{{ url_for('new_node') }}"><svg class="icon sm"><use href="#i-plus"/></svg>添加节点</a>
+  </div>
+</div>
+
+<section class="card">
+  <div class="card-head">
+    <form method="get" class="filters" style="flex:1">
+      <div class="search">
+        <svg class="icon sm"><use href="#i-search"/></svg>
+        <input type="search" placeholder="搜索名称、服务器、标签…  按 / 聚焦" data-filter="#node-table" data-filter-count="#shown-count" autocomplete="off">
+      </div>
+      <select name="source" data-autosubmit aria-label="来源">
+        <option value="all" {% if selected_source == "all" %}selected{% endif %}>全部来源</option>
+        <option value="manual" {% if selected_source == "manual" %}selected{% endif %}>手动添加</option>
+        {% for source in sources %}
+          {% set source_key = "source:" ~ (source.id|string) %}
+          <option value="{{ source_key }}" {% if selected_source == source_key %}selected{% endif %}>{{ source.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="type" data-autosubmit aria-label="协议">
+        <option value="all">全部协议</option>
+        {% for t in types %}<option value="{{ t }}" {% if selected_type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+      </select>
+      <select name="status" data-autosubmit aria-label="状态">
+        <option value="all" {% if selected_status == "all" %}selected{% endif %}>全部状态</option>
+        <option value="enabled" {% if selected_status == "enabled" %}selected{% endif %}>已启用</option>
+        <option value="disabled" {% if selected_status == "disabled" %}selected{% endif %}>已禁用</option>
+        <option value="stale" {% if selected_status == "stale" %}selected{% endif %}>上游已失效</option>
+      </select>
+      {% if selected_source != "all" or selected_type != "all" or selected_status != "all" %}
+      <a class="button ghost" href="{{ url_for('nodes') }}"><svg class="icon sm"><use href="#i-x"/></svg>清除筛选</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <form method="post" action="{{ url_for('bulk_delete_nodes') }}" id="bulk-form">
+    {{ csrf_field() }}
+    <input type="hidden" name="next" value="{{ here }}">
+    <div class="table-wrap" id="node-table">
+      <table>
+        <thead>
+          <tr>
+            <th class="check-col"><input type="checkbox" aria-label="全选" onclick="document.querySelectorAll('.node-check').forEach(b => { if (!b.closest('[hidden]')) b.checked = this.checked }); document.dispatchEvent(new Event('selection-change'))"></th>
+            <th>名称</th><th>协议</th><th class="hide-sm">服务器</th><th>来源</th><th class="num">用户</th><th>状态</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for node in nodes %}
+          {% set cfg = node.config_json|fromjson %}
+          <tr class="{{ '' if node.enabled else 'is-off' }}" data-filter-item data-search="{{ node.name }} {{ node.type }} {{ cfg.server }} {{ node.tags or '' }} {{ node.remark or '' }} {{ node.source_label }}">
+            <td class="check-col"><input class="node-check" type="checkbox" name="node_ids" value="{{ node.id }}" aria-label="选择 {{ node.name }}"></td>
+            <td>
+              <div class="cell-title"><a href="{{ url_for('edit_node', node_id=node.id, next=here) }}">{{ node.name }}</a></div>
+              {% if node.tags or node.remark %}
+              <div class="cell-sub">
+                {% for tag in (node.tags or '').replace('，', ',').split(',') if tag.strip() %}<span class="tag accent">{{ tag.strip() }}</span> {% endfor %}
+                {{ node.remark or '' }}
+              </div>
+              {% endif %}
+            </td>
+            <td><span class="tag type">{{ node.type }}</span></td>
+            <td class="hide-sm"><div class="mono muted clip" style="max-width:260px" title="{{ cfg.server }}:{{ cfg.port }}">{{ cfg.server }}{% if cfg.port %}:{{ cfg.port }}{% endif %}</div></td>
+            <td class="nowrap"><span class="muted">{{ node.source_label }}</span></td>
+            <td class="num">{{ usage.get(node.id, 0) or '-' }}</td>
+            <td>
+              {% if node.id in stale_ids %}<span class="pill warn" title="最近一次同步时上游已没有该节点">失效</span>
+              {% elif node.enabled %}<span class="pill ok">启用</span>
+              {% else %}<span class="pill off">禁用</span>{% endif %}
+            </td>
+            <td class="actions-cell">
+              <div class="actions">
+                <button formaction="{{ url_for('toggle_node', node_id=node.id) }}" class="sm ghost icon-btn" title="{{ '禁用' if node.enabled else '启用' }}"><svg class="icon sm"><use href="#i-power"/></svg></button>
+                <a class="button sm ghost icon-btn" href="{{ url_for('edit_node', node_id=node.id, next=here) }}" title="编辑"><svg class="icon sm"><use href="#i-edit"/></svg></a>
+                <button formaction="{{ url_for('delete_node', node_id=node.id) }}" class="sm ghost icon-btn danger" title="删除" data-confirm="删除节点「{{ node.name }}」？"><svg class="icon sm"><use href="#i-trash"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          <tr data-filter-empty {% if nodes %}hidden{% endif %}><td colspan="8" class="empty"><svg class="icon"><use href="#i-server"/></svg><div>没有符合条件的节点</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bulkbar" id="bulkbar" hidden>
+      <b>已选 <span id="sel-count">0</span> 个</b>
+      <span class="spacer"></span>
+      <button name="action" value="enable" class="sm">启用</button>
+      <button name="action" value="disable" class="sm">禁用</button>
+      <button name="action" value="delete" class="sm danger" data-confirm="删除选中的节点？已绑定的用户会同时失去这些节点。">删除</button>
+    </div>
+  </form>
+</section>
+<script>
+  document.addEventListener("selection-change", function () {
+    var n = document.querySelectorAll(".node-check:checked").length;
+    document.getElementById("sel-count").textContent = n;
+    document.getElementById("bulkbar").hidden = n === 0;
+  });
+</script>
+{% endblock %}

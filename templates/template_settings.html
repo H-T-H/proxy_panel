@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% set title = "配置模板" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>配置模板</h1>
+    <p>所有用户共用的 mihomo 配置骨架。系统会自动生成 <code>proxies</code>，并把代理组里的 <code>__PROXIES__</code> 展开为该用户的节点名。</p>
+  </div>
+</div>
+
+<nav class="tabs" role="tablist">
+  <a class="tab" href="#group-defaults" data-tab="group-defaults" role="tab"><svg class="icon sm"><use href="#i-users"/></svg>规则组{% if group_defaults %}<span class="tab-count">{{ group_defaults|length }}</span>{% endif %}</a>
+  <a class="tab" href="#node-order" data-tab="node-order" role="tab"><svg class="icon sm"><use href="#i-server"/></svg>节点排序</a>
+  <a class="tab" href="#template" data-tab="template" role="tab"><svg class="icon sm"><use href="#i-edit"/></svg>模板编辑</a>
+  <a class="tab" href="#import" data-tab="import" role="tab"><svg class="icon sm"><use href="#i-cloud"/></svg>导入模板</a>
+</nav>
+
+<section class="card tab-panel" id="tab-group-defaults" role="tabpanel">
+  <div class="card-head">
+    <div><h2>规则组默认选项</h2><p>客户端首次加载订阅时，各规则组默认选中哪一项</p></div>
+  </div>
+  {% if group_choices %}
+  <form method="post" action="{{ url_for('group_defaults_settings') }}">
+    {{ csrf_field() }}
+    <div class="card-body">
+      <div class="group-grid">
+        {% for name, info in group_choices.items() %}
+        {% set current = group_defaults.get(name, '') %}
+        <div class="group-default-row {{ 'is-custom' if current }}">
+          <input type="hidden" name="group_name" value="{{ name }}">
+          <label>
+            <span class="row" style="justify-content:space-between;gap:6px;flex-wrap:nowrap">
+              <span class="clip">{{ name }}</span>
+              {% if current %}<span class="pill ok">已自定义</span>{% endif %}
+            </span>
+            <select name="group_choice">
+              <option value="">按模板（{{ info.template_default }}）</option>
+              {% for value, label in info.options %}
+              <option value="{{ value }}" {% if current == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="card-foot">
+      <button class="primary">保存默认选项</button>
+      <button type="button" class="ghost" onclick="this.form.querySelectorAll('select').forEach(function (s) { s.value = '' })">全部恢复为模板</button>
+      <span class="hint" style="flex:1;min-width:240px">只影响默认值，用户仍可在客户端里随时切换；客户端会记住用户之前手动选过的项。下拉框里不会出现会造成循环引用的规则组。</span>
+    </div>
+  </form>
+  {% else %}
+  <div class="card-body"><p class="muted">当前模板里没有可设置的规则组。</p></div>
+  {% endif %}
+</section>
+
+<section class="card tab-panel" id="tab-node-order" role="tabpanel">
+  <div class="card-head">
+    <div><h2>节点排序</h2><p>按关键词决定节点在订阅和各代理组里的先后</p></div>
+  </div>
+  <form method="post" action="{{ url_for('node_order_settings') }}">
+    {{ csrf_field() }}
+    <div class="card-body grid-2">
+      <div class="form">
+        <label>优先级（每行一级，越靠上越靠前）
+          <textarea name="sort_keywords" id="sort-keywords" rows="9" class="code" spellcheck="false" placeholder="香港|HK|🇭🇰&#10;日本|JP|🇯🇵&#10;新加坡|SG|🇸🇬">{{ sort_text }}</textarea>
+        </label>
+        <p class="hint">同一行用 <code>|</code> 分隔多个关键词，命中任意一个即可；按节点名包含匹配，不区分大小写。都没命中的节点排在最后，保持原有顺序。同时命中多行的节点按最靠上的一行算。以 <code>#</code> 开头的行会被忽略。</p>
+        <div class="row" style="gap:6px">
+          <span class="hint">快速填入：</span>
+          <button type="button" class="sm" data-preset="香港|HK|Hong Kong|🇭🇰&#10;台湾|TW|Taiwan|🇹🇼&#10;日本|JP|Japan|🇯🇵&#10;新加坡|SG|Singapore|🇸🇬&#10;美国|United States|🇺🇸">常用地区</button>
+        </div>
+      </div>
+      <div id="sort-preview" class="stack" style="gap:6px;font-size:13px;align-content:start"></div>
+    </div>
+    <div class="card-foot">
+      <button class="primary">保存排序</button>
+    </div>
+  </form>
+</section>
+
+<section class="card tab-panel" id="tab-template" role="tabpanel">
+  <form method="post">
+    {{ csrf_field() }}
+    <div class="card-head">
+      <div><h2>模板内容</h2><p>Tab 缩进两格，Ctrl/⌘ + S 保存</p></div>
+      <span class="muted" id="line-count"></span>
+    </div>
+    <div class="card-body">
+      <textarea name="template" id="template-text" rows="32" class="code" spellcheck="false">{{ template }}</textarea>
+    </div>
+    <div class="card-foot sticky-save">
+      <button class="primary">保存模板</button>
+      <span class="hint">保存前会校验 YAML 结构；用户下次刷新订阅即生效。</span>
+    </div>
+  </form>
+</section>
+
+<section class="tab-panel" id="tab-import" role="tabpanel">
+  <div class="banner" style="margin-bottom:20px"><svg class="icon"><use href="#i-alert"/></svg><span>导入会<b>覆盖当前模板</b>（包括手动加入的规则组和规则）。规则组默认选项和节点排序单独保存，不受影响。</span></div>
+  <div class="grid-2" style="align-items:start">
+    <section class="card">
+      <div class="card-head"><div><h2>从远程配置提取</h2><p>上次：{{ remote_updated_at or '从未' }}</p></div></div>
+      <form method="post" action="{{ url_for('fetch_remote_template') }}" data-confirm="会覆盖当前模板，确定？">
+        {{ csrf_field() }}
+        <div class="card-body form">
+          <label>完整配置 URL<input name="remote_url" type="url" value="{{ remote_url }}" placeholder="https://example.com/full-config.yaml"></label>
+        </div>
+        <div class="card-foot"><button data-loading>拉取并提取</button></div>
+      </form>
+    </section>
+    <section class="card">
+      <div class="card-head"><div><h2>粘贴完整配置提取</h2><p>会移除 proxies，并把代理组里的节点名替换为 __PROXIES__</p></div></div>
+      <form method="post" action="{{ url_for('extract_template') }}" data-confirm="会覆盖当前模板，确定？">
+        {{ csrf_field() }}
+        <div class="card-body form">
+          <textarea name="config_text" rows="8" class="code" spellcheck="false" placeholder="粘贴完整 mihomo/Clash 配置"></textarea>
+        </div>
+        <div class="card-foot"><button>提取为当前模板</button></div>
+      </form>
+    </section>
+  </div>
+</section>
+
+<script>
+  (function () {
+    // tabs: driven by the URL hash so redirects like #node-order land on the right tab
+    var tabs = document.querySelectorAll("[data-tab]");
+    function show(id) {
+      if (!document.getElementById("tab-" + id)) id = "group-defaults";
+      tabs.forEach(function (t) {
+        var on = t.dataset.tab === id;
+        t.classList.toggle("active", on);
+        t.setAttribute("aria-selected", on);
+        document.getElementById("tab-" + t.dataset.tab).hidden = !on;
+      });
+      try { localStorage.setItem("template-tab", id); } catch (e) {}
+    }
+    tabs.forEach(function (t) {
+      t.addEventListener("click", function (e) {
+        e.preventDefault();
+        history.replaceState(null, "", "#" + t.dataset.tab);
+        show(t.dataset.tab);
+      });
+    });
+    var initial = location.hash.slice(1);
+    if (!initial) { try { initial = localStorage.getItem("template-tab") || ""; } catch (e) {} }
+    show(initial);
+  })();
+
+  (function () {
+    var t = document.getElementById("template-text");
+    function count() { document.getElementById("line-count").textContent = t.value.split("\n").length + " 行"; }
+    t.addEventListener("input", count); count();
+    t.addEventListener("keydown", function (e) {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        t.setRangeText("  ", t.selectionStart, t.selectionEnd, "end");
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); t.form.requestSubmit(); }
+    });
+  })();
+
+  (function () {
+    var names = {{ node_names|tojson }};
+    var box = document.getElementById("sort-keywords");
+    var out = document.getElementById("sort-preview");
+    function rules() {
+      return box.value.split("\n").map(function (l) { return l.trim(); })
+        .filter(function (l) { return l && l.charAt(0) !== "#"; })
+        .map(function (l) { return l.split("|").map(function (k) { return k.trim().toLowerCase(); }).filter(Boolean); })
+        .filter(function (k) { return k.length; });
+    }
+    function esc(t) { var d = document.createElement("div"); d.textContent = t; return d.innerHTML; }
+    function render() {
+      var r = rules();
+      var buckets = r.map(function () { return []; }); buckets.push([]);
+      names.forEach(function (n) {
+        var low = n.toLowerCase(), idx = r.length;
+        for (var i = 0; i < r.length; i++) {
+          if (r[i].some(function (k) { return low.indexOf(k) !== -1; })) { idx = i; break; }
+        }
+        buckets[idx].push(n);
+      });
+      var html = "";
+      buckets.forEach(function (list, i) {
+        var label = i < r.length ? (i + 1) + ". " + r[i].join(" | ") : "未匹配（排在最后）";
+        if (i === r.length && !r.length) label = "未设置规则，保持默认顺序";
+        var sample = list.slice(0, 12).map(esc).join("、") + (list.length > 12 ? " …" : "");
+        html += '<details class="node-group"><summary style="padding:8px 12px"><svg class="icon sm chev"><use href="#i-chev"/></svg>' +
+          '<span style="flex:1;min-width:0" class="clip">' + esc(label) + '</span>' +
+          '<span class="pill ' + (list.length ? (i < r.length ? "ok" : "off") : "warn") + '">' + list.length + '</span></summary>' +
+          '<div style="padding:10px 12px" class="muted">' + (sample || "没有节点命中") + '</div></details>';
+      });
+      out.innerHTML = '<div class="hint">实时预览：全部 ' + names.length + ' 个启用节点的归类</div>' + html;
+    }
+    box.addEventListener("input", render);
+    document.querySelectorAll("[data-preset]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (box.value.trim() && !confirm("替换当前的排序规则？")) return;
+        box.value = b.dataset.preset; render();
+      });
+    });
+    render();
+  })();
+</script>
+{% endblock %}

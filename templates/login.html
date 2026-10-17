@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% set title = "登录" %}
+{% block bare %}
+<div class="login-wrap">
+  <section class="card login-card">
+    <div class="brand"><img class="brand-logo" src="{{ url_for('static', filename='favicon.svg') }}?v=2" width="30" height="30" alt="">Proxy Share</div>
+    <h1>欢迎回来</h1>
+    <p>登录管理后台</p>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+      <div class="banner {{ 'err' if category == 'error' }}" style="margin-bottom:16px"><svg class="icon"><use href="#i-alert"/></svg><span>{{ message }}</span></div>
+      {% endfor %}
+    {% endwith %}
+    <form method="post" class="form">
+      {{ csrf_field() }}
+      <label>用户名<input name="username" autocomplete="username" required autofocus></label>
+      <label>密码<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary" style="min-height:40px">登录</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="toasts" role="status">
+    {% for category, message in messages %}
+    <div class="toast {{ category }}">
+      <svg class="icon"><use href="#i-{{ 'alert' if category == 'error' else 'check' }}"/></svg>
+      <span>{{ message }}</span>
+      <button type="button" onclick="this.parentNode.remove()" aria-label="关闭"><svg class="icon sm"><use href="#i-x"/></svg></button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}

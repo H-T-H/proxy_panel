@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% set title = "订阅源" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>订阅源</h1>
+    <p>从 mihomo / Clash 订阅批量导入节点。上游改了密码或参数时，同名节点会原地更新，用户绑定不会丢失。</p>
+  </div>
+  <div class="actions">
+    <form method="post" action="{{ url_for('sync_all_sources') }}" class="inline">
+      {{ csrf_field() }}
+      <button data-loading {% if not sources %}disabled{% endif %}><svg class="icon sm"><use href="#i-refresh"/></svg>全部同步</button>
+    </form>
+  </div>
+</div>
+
+<section class="card">
+  <div class="card-head"><h2>添加订阅源</h2></div>
+  <div class="card-body">
+    <form method="post" class="inline-form">
+      {{ csrf_field() }}
+      <input type="hidden" name="sync_now" value="1">
+      <label>名称<input name="name" placeholder="例如：机场 A" required></label>
+      <label>订阅 URL<input name="url" type="url" placeholder="https://… mihomo/Clash YAML 订阅" required></label>
+      <button class="primary" data-loading><svg class="icon sm"><use href="#i-plus"/></svg>添加并同步</button>
+    </form>
+  </div>
+</section>
+
+<section class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>订阅源</th><th class="num">节点</th><th>最后同步</th><th>状态</th><th></th></tr></thead>
+      <tbody>
+        {% for source in sources %}
+        {% set c = node_counts[source.id] %}
+        <tr class="{{ '' if source.enabled else 'is-off' }}">
+          <td>
+            <div class="cell-title">{{ source.name }}</div>
+            <div class="cell-sub clip mono" title="{{ source.url }}">{{ source.url }}</div>
+          </td>
+          <td class="num">
+            <a href="{{ url_for('nodes', source='source:' ~ source.id) }}">{{ c.total }}</a>
+            {% if c.stale %}<div class="cell-sub"><a href="{{ url_for('nodes', source='source:' ~ source.id, status='stale') }}" style="color:var(--warn)">{{ c.stale }} 失效</a></div>{% endif %}
+          </td>
+          <td><span title="{{ source.last_synced_at|dt }}">{{ source.last_synced_at|ago }}</span></td>
+          <td>
+            {% if source.last_error %}<span class="pill err">同步失败</span><div class="cell-sub clip" style="max-width:260px" title="{{ source.last_error }}">{{ source.last_error }}</div>
+            {% elif not source.enabled %}<span class="pill off">已停用</span>
+            {% elif source.last_synced_at %}<span class="pill ok">正常</span>
+            {% else %}<span class="pill warn">未同步</span>{% endif %}
+          </td>
+          <td class="actions-cell">
+            <div class="actions">
+              <form method="post" action="{{ url_for('sync_source', source_id=source.id) }}" class="inline">
+                {{ csrf_field() }}
+                <button class="sm" data-loading><svg class="icon sm"><use href="#i-refresh"/></svg>同步</button>
+              </form>
+              <button type="button" class="sm" onclick="document.getElementById('edit-{{ source.id }}').hidden ^= true"><svg class="icon sm"><use href="#i-edit"/></svg>编辑</button>
+            </div>
+          </td>
+        </tr>
+        <tr class="edit-row" id="edit-{{ source.id }}" hidden>
+          <td colspan="5">
+            <div class="grid-2">
+              <form method="post" action="{{ url_for('edit_source', source_id=source.id) }}" class="form">
+                {{ csrf_field() }}
+                <div class="form-row">
+                  <label>名称<input name="name" value="{{ source.name }}" required></label>
+                  <label>订阅 URL<input name="url" value="{{ source.url }}" required></label>
+                </div>
+                <div class="row">
+                  <label class="switch"><input type="checkbox" name="enabled" value="1" {% if source.enabled %}checked{% endif %}>参与「全部同步」</label>
+                  <span class="spacer"></span>
+                  <button class="primary sm">保存</button>
+                </div>
+              </form>
+              <form method="post" action="{{ url_for('delete_source', source_id=source.id) }}" class="form"
+                    data-confirm="删除订阅源「{{ source.name }}」？已导入的节点会保留。"
+                    data-confirm-alt="删除订阅源「{{ source.name }}」，并删除它的全部 {{ c.total }} 个节点？用户绑定也会一并移除。">
+                {{ csrf_field() }}
+                <p class="hint">删除订阅源。默认保留已导入节点（变为独立节点，保留来源名）。</p>
+                <div class="row">
+                  <label class="switch" style="color:var(--danger)"><input type="checkbox" name="delete_nodes" value="1" data-confirm-switch>同时删除 {{ c.total }} 个节点</label>
+                  <span class="spacer"></span>
+                  <button class="danger sm"><svg class="icon sm"><use href="#i-trash"/></svg>删除订阅源</button>
+                </div>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty"><svg class="icon"><use href="#i-cloud"/></svg><div>还没有订阅源，在上方添加第一个</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
