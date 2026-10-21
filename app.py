@@ -1025,6 +1025,14 @@ def normalize_proxy(config):
     config = dict(config)
     config["name"] = str(config["name"])
     config["type"] = str(config["type"]).lower()
+    return use_servername(config)
+
+
+def use_servername(config):
+    """mihomo reads the TLS server name of vless/vmess from "servername" and silently ignores "sni"."""
+    if config.get("type") in {"vless", "vmess"} and "sni" in config:
+        sni = config.pop("sni")
+        config.setdefault("servername", sni)
     return config
 
 
@@ -1529,7 +1537,7 @@ def render_subscription(session, user):
     used_names = set()
     nodes = sorted((link.node for link in user.nodes if link.node.enabled), key=node_sort_key)
     rules = parse_sort_rules(get_setting(session, "node_sort_keywords", ""))
-    loaded = [(node, json.loads(node.config_json)) for node in nodes]
+    loaded = [(node, use_servername(json.loads(node.config_json))) for node in nodes]
     loaded = apply_sort_rules(loaded, rules, lambda pair: pair[1].get("name") or pair[0].name)
     for node, config in loaded:
         config["name"] = unique_name(config.get("name") or node.name, used_names)

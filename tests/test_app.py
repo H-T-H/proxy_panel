@@ -140,12 +140,27 @@ def test_bulk_enable_disable_delete(admin):
         ("ss://YWVzLTI1Ni1nY206cHc=@b.example.com:8388#S1", {"type": "ss", "cipher": "aes-256-gcm", "password": "pw", "port": 8388}),
         ("hy2://pw@h.example.com:8443#H", {"type": "hysteria2", "password": "pw"}),
         ("vless://uuid-1@h.example.com:443?security=reality&pbk=KEY&sid=ab#V", {"type": "vless", "uuid": "uuid-1", "tls": True}),
+        ("vless://uuid-1@1.2.3.4:443?security=reality&sni=www.yahoo.com&pbk=KEY&sid=ab#V", {"type": "vless", "servername": "www.yahoo.com"}),
     ],
 )
 def test_parse_proxy_uri(uri, expected):
     config = app_module.parse_proxy_uri(uri)
     for key, value in expected.items():
         assert config[key] == value
+
+
+@pytest.mark.parametrize(
+    "config, expected",
+    [
+        ({"name": "V", "type": "vless", "sni": "a.example.com"}, {"servername": "a.example.com"}),
+        ({"name": "V", "type": "vless", "sni": "a.example.com", "servername": "b.example.com"}, {"servername": "b.example.com"}),
+        ({"name": "M", "type": "vmess", "sni": "a.example.com"}, {"servername": "a.example.com"}),
+        ({"name": "T", "type": "trojan", "sni": "a.example.com"}, {"sni": "a.example.com"}),
+    ],
+)
+def test_vless_vmess_use_servername(config, expected):
+    config = app_module.normalize_proxy(config)
+    assert {k: config[k] for k in ("sni", "servername") if k in config} == expected
 
 
 # ---------- source sync ----------
