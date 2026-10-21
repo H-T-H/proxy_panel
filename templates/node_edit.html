@@ -24,7 +24,7 @@
         {% if editable_config %}
           <label>节点配置（mihomo YAML）
             <textarea name="config_text" rows="16" class="code" spellcheck="false" required>{{ config_text }}</textarea>
-            <span class="hint">保存时会重新解析这份配置；配置里的 name 会覆盖上方名称。</span>
+            <span class="hint">保存时会重新解析这份配置。改名在上方「名称」或这里的 name 改都可以；两处都改时以上方「名称」为准。</span>
           </label>
         {% else %}
           <label>当前配置（只读）

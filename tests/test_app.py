@@ -311,3 +311,39 @@ def test_subscription_fixes_wildcards_rejected_by_new_mihomo(admin):
         "+.bilivideo.net": "119.29.29.29",
     }
 
+
+
+def edit_manual_node(admin, node_id, name, config_text):
+    return admin.post(f"/nodes/{node_id}/edit", data={"name": name, "enabled": "1", "config_text": config_text})
+
+
+def node_config_text(admin, node_id):
+    import html
+    page = admin.get(f"/nodes/{node_id}/edit").text
+    return html.unescape(re.search(r'<textarea name="config_text"[^>]*>(.*?)</textarea>', page, re.S).group(1))
+
+
+def test_renaming_manual_node_via_name_field(admin):
+    add_nodes(admin, "trojan://pw@a.example.com:443#Old")
+    node_id = node_ids(admin)[0]
+    edit_manual_node(admin, node_id, "New", node_config_text(admin, node_id))  # config text still says "Old"
+    assert ">New<" in admin.get("/nodes").text
+    assert "name: New" in node_config_text(admin, node_id)
+    user_id = create_user(admin)
+    admin.post(f"/users/{user_id}", data={"username": "alice", "enabled": "1", "node_ids": [node_id]})
+    assert [p["name"] for p in yaml.safe_load(admin.get(f"/users/{user_id}/preview").text)["proxies"]] == ["New"]
+
+
+def test_renaming_manual_node_via_config(admin):
+    add_nodes(admin, "trojan://pw@a.example.com:443#Old")
+    node_id = node_ids(admin)[0]
+    edit_manual_node(admin, node_id, "Old", node_config_text(admin, node_id).replace("name: Old", "name: FromYaml"))
+    assert ">FromYaml<" in admin.get("/nodes").text
+
+
+def test_name_field_wins_when_both_changed(admin):
+    add_nodes(admin, "trojan://pw@a.example.com:443#Old")
+    node_id = node_ids(admin)[0]
+    edit_manual_node(admin, node_id, "FromField", node_config_text(admin, node_id).replace("name: Old", "name: FromYaml"))
+    assert ">FromField<" in admin.get("/nodes").text
+    assert "name: FromField" in node_config_text(admin, node_id)

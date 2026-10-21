@@ -490,7 +490,8 @@ def create_app():
         editable_config = node.source_id is None
         bound_users = [link.user for link in node.users]
         if request.method == "POST":
-            node.name = request.form["name"].strip()
+            previous_name = node.name
+            node.name = request.form["name"].strip() or previous_name
             node.tags = request.form.get("tags", "").strip() or None
             node.remark = request.form.get("remark", "").strip() or None
             node.enabled = bool(request.form.get("enabled"))
@@ -508,6 +509,9 @@ def create_app():
                         readonly_config=formatted_node_config(node),
                         bound_users=bound_users,
                     )
+                # Whichever name the admin actually edited wins; the name field takes precedence if both changed.
+                if node.name != previous_name or config["name"] == previous_name:
+                    config["name"] = node.name
                 node.name = config["name"]
                 node.type = config["type"]
                 node.config_hash = config_hash(config)
